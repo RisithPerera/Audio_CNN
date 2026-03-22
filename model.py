@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+# This block represents one Residual Block
 class ResidualBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, stride = 1):
@@ -32,7 +33,7 @@ class ResidualBlock(nn.Module):
 
         return out
 
-
+# This class represents 34 layer residual
 class AudioCNN(nn.Module):
     def __init__(self, num_classes = 50):
         super().__init__()
@@ -44,11 +45,11 @@ class AudioCNN(nn.Module):
         )
 
         self.layer1 = nn.ModuleList([ResidualBlock(64, 64) for _ in range(3)])
-        self.layar2 = nn.ModuleList([ResidualBlock( 64 if i == 0 else 128, 128) for i in range(4)])
-        self.layar3 = nn.ModuleList([ResidualBlock(128 if i == 0 else 256, 256) for i in range(6)])
-        self.layar4 = nn.ModuleList([ResidualBlock(256 if i == 0 else 512, 512) for i in range(3)])
+        self.layer2 = nn.ModuleList([ResidualBlock(64 if i == 0 else 128, 128) for i in range(4)])
+        self.layer3 = nn.ModuleList([ResidualBlock(128 if i == 0 else 256, 256) for i in range(6)])
+        self.layer4 = nn.ModuleList([ResidualBlock(256 if i == 0 else 512, 512) for i in range(3)])
 
-        self.avgpool = nn.AdaptiveAvgPool2d((1,1))
+        self.avgPool = nn.AdaptiveAvgPool2d((1, 1))
         self.dropout = nn.Dropout(0.5)
         self.fc = nn.Linear(512, num_classes)
 
@@ -56,14 +57,14 @@ class AudioCNN(nn.Module):
         out = self.conv1(x)
         for block in self.layer1:
             out = block(out)
-        for block in self.layar2:
+        for block in self.layer2:
             out = block(out)
-        for block in self.layar3:
+        for block in self.layer3:
             out = block(out)
-        for block in self.layar4:
+        for block in self.layer4:
             out = block(out)
 
-        out = self.avgpool(out)
+        out = self.avgPool(out)
         out = out.view(out.size(0), -1)
         out = self.dropout(out)
         out = self.fc(out)
