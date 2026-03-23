@@ -11,6 +11,8 @@ import numpy as np
 from torch.optim.lr_scheduler import OneCycleLR
 from model import AudioCNN
 from tqdm import tqdm
+from datetime import datetime
+from torch.utils.tensorboard import SummaryWriter
 
 class ESC50Dataset(Dataset):
     def __init__(self, data_dir, metadata_file, split="train", transform = None):
@@ -53,18 +55,22 @@ def mixup_data(x, y):
 
     batch_size = x.size(0)
     index = torch.randperm(batch_size).to(x.device)
+
     mixed_x = lam * x + (1 - lam) * x[index, :]
     y_a, y_b = y, y[index]
-
     return mixed_x, y_a, y_b, lam
 
 
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+def mixup_criterion(criterion, prediction, y_a, y_b, lam):
+    return lam * criterion(prediction, y_a) + (1 - lam) * criterion(prediction, y_b)
 
 
 def train():
-    esc50_dir = Path("/dataset/ESC-50")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = f'/models/tensorboard_logs/run_{timestamp}'
+    writer = SummaryWriter(log_dir)
+
+    esc50_dir = Path("dataset/ESC-50")
 
     train_transform = nn.Sequential(
         T.MelSpectrogram(
@@ -163,6 +169,8 @@ def train():
             progress_bar.set_postfix({'Loss': f'{loss.item():.4f}'})
 
         avg_epoch_loss = epoch_loss / len(train_dataloader)
+        writer.add_scalar('Loss/Train', avg_epoch_loss, epoch)
+        writer.add_scalar('Learning_Rates', optimizer.param_groups[0]['lr'], epoch)
 
         # Validation after each epoch
         model.eval()
@@ -175,7 +183,7 @@ def train():
             for data, target in val_dataloader:
                 data, target = data.to(device), target.to(device)
                 outputs = model(data)
-                loss = criterion(data)
+                loss = criterion(outputs, target)
                 val_loss += loss.item()
 
                 _, predicted = torch.max(outputs.data, 1)
@@ -184,6 +192,9 @@ def train():
 
         accuracy = 100 * correct / total
         avg_val_loss = val_loss / len(val_dataloader)
+
+        writer.add_scalar('Loss/Validation', avg_val_loss, epoch)
+        writer.add_scalar('Accuracy/Validation', accuracy, epoch)
 
         print(f'Epoch {epoch + 1} Loss: {avg_epoch_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Accuracy: {accuracy:.2f}%')
 
@@ -195,7 +206,12 @@ def train():
                 'epoch': epoch,
                 'classes': train_dataset.classes
             }, '/models/best_model.pth')
-
             print(f'New best model saved: {accuracy:.2f}%')
 
-    print(f'Training completed! Best Accuracy: {best_accuracy:.2f}%')
+    writer.close()
+    print(f'Training completed! Best accuracy: {best_accuracy:.2f}%')
+
+
+# Start the training
+if __name__ == "__main__":
+    train()
