@@ -1,8 +1,13 @@
 from pathlib import Path
 import pandas as pd
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import torchaudio
 import torch
+import torch.nn as nn
+import torchaudio.transforms as T
+
+from model import AudioCNN
+
 
 class ESC50Dataset(Dataset):
     def __init__(self, data_dir, metadata_file, split="train", transform = None):
@@ -38,3 +43,32 @@ class ESC50Dataset(Dataset):
             spectrogram = waveform
 
         return spectrogram, row['label']
+
+def train():
+    esc50_dir = Path("/dataset/ESC-50")
+
+    train_transform = nn.Sequential(
+        T.MelSpectrogram(
+            sample_rate=22050,
+            n_fft=1024,
+            hop_length=512,
+            n_mels=128,
+            f_min=0,
+            f_max=11025
+        ),
+        T.AmplitudeToDB(),
+        T.FrequencyMasking(freq_mask_param=30), # Dropout technique for audio
+        T.TimeMasking(time_mask_param=80)
+    )
+
+    val_transform = nn.Sequential(
+        T.MelSpectrogram(
+            sample_rate=22050,
+            n_fft=1024,
+            hop_length=512,
+            n_mels=128,
+            f_min=0,
+            f_max=11025
+        ),
+        T.AmplitudeToDB()
+    )
