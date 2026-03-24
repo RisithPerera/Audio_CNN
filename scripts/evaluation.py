@@ -10,7 +10,7 @@ from model import AudioCNN
 
 
 def evaluation():
-    esc50_dir = Path("dataset/ESC-50")
+    esc50_dir = Path("../dataset/ESC-50")
 
     val_transform = nn.Sequential(
         T.MelSpectrogram(
@@ -35,7 +35,7 @@ def evaluation():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    checkpoint = torch.load('models/audio_cnn.pth', map_location=device)
+    checkpoint = torch.load('../models/audio_cnn.pth', map_location=device)
     model = AudioCNN(num_classes=len(val_dataset.classes))
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)

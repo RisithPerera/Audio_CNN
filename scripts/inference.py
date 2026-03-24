@@ -1,17 +1,16 @@
 import base64
 import io
-import numpy as np
 
+import librosa
+import numpy as np
+import soundfile as sf
 import torch.cuda
-import requests
-from model import AudioCNN
 import torch.nn as nn
 import torchaudio.transforms as T
-import soundfile as sf
-import librosa
-
 from fastapi import FastAPI
 from pydantic import BaseModel
+
+from model import AudioCNN
 
 app = FastAPI()
 
@@ -46,7 +45,7 @@ class AudioClassifier:
 
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        checkpoint = torch.load('models/audio_cnn.pth', map_location=self.device)
+        checkpoint = torch.load('../models/audio_cnn.pth', map_location=self.device)
         self.classes = checkpoint['classes']
         self.model = AudioCNN(num_classes=len(self.classes))
         self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -56,12 +55,7 @@ class AudioClassifier:
         self.audio_processor = AudioProcessor()
         print('Model Loaded')
 
-    @app.post("/inference/")
-    def inference(self, request: InferenceRequest):
-        audio_byte = base64.b64decode(request.audio_data)
-
-        audio_data, sample_rate = sf.read(io.BytesIO(audio_byte), dtype = "float32")
-
+    def inference(self, audio_data, sample_rate):
         if audio_data.ndim > 1:
             audio_data = np.mean(audio_data, axis=1)
 
@@ -75,15 +69,38 @@ class AudioClassifier:
             output = self.model(spectrogram)
             output = torch.nan_to_num(output)
 
-            probabilities = torch.softmax(output, dim=0)
+            probabilities = torch.softmax(output, dim = 1)
 
-            top3_probs, top3_indices = torch.topk(probabilities[0], 3)
+            top3_probs, top3_indicies = torch.topk(probabilities[0], 3)
 
-            predictions = [{"class": self.classes[idx], "confidence": prob.item()}
-                           for prob, idx in zip(top3_probs, top3_indices)]
+            predictions = [{"class": self.classes[idx.item()], "confidence": prob.item()}
+                           for prob, idx in zip(top3_probs, top3_indicies)]
 
-            response = {
-                "predictions": predictions
-            }
+            return predictions
 
-            return response
+classifier = None
+
+@app.on_event("startup")
+def load():
+    global classifier
+    classifier = AudioClassifier()
+
+
+@app.post("/inference/")
+def process_inference_request(request: InferenceRequest):
+    audio_byte = base64.b64decode(request.audio_data)
+
+    audio_data, sample_rate = sf.read(io.BytesIO(audio_byte), dtype="float32")
+
+    predictions = classifier.inference(audio_data, sample_rate)
+
+    response = {
+        "predictions": predictions
+    }
+
+    return response
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

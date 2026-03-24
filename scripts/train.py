@@ -35,7 +35,7 @@ def train():
     log_dir = f'/models/tensorboard_logs/run_{timestamp}'
     writer = SummaryWriter(log_dir)
 
-    esc50_dir = Path("dataset/ESC-50")
+    esc50_dir = Path("../dataset/ESC-50")
 
     train_transform = nn.Sequential(
         T.MelSpectrogram(
@@ -170,7 +170,7 @@ def train():
                 'accuracy': accuracy,
                 'epoch': epoch,
                 'classes': train_dataset.classes
-            }, 'models/audio_cnn.pth')
+            }, f'models/audio_cnn_{timestamp}_{accuracy:.0f}.pth')
             print(f'New best model saved: {accuracy:.2f}%')
 
     writer.close()
