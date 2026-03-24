@@ -1,62 +1,18 @@
+from datetime import datetime
 from pathlib import Path
-import pandas as pd
-from torch.utils.data import Dataset, DataLoader
-import torchaudio
+
+import numpy as np
 import torch
 import torch.nn as nn
-import torchaudio.transforms as T
 import torch.optim as optim
-import numpy as np
-import soundfile as sf
-
+import torchaudio.transforms as T
 from torch.optim.lr_scheduler import OneCycleLR
-from model import AudioCNN
-from tqdm import tqdm
-from datetime import datetime
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
-class ESC50Dataset(Dataset):
-    def __init__(self, data_dir, metadata_file, split="train", transform = None):
-        super().__init__()
-        self.data_dir = Path(data_dir)
-        self.metadata = pd.read_csv(metadata_file)
-        self.split = split
-        self.transform = transform
-
-        if split == 'train':
-            self.metadata = self.metadata[self.metadata['fold'] != 5]
-        else:
-            self.metadata = self.metadata[self.metadata['fold'] == 5]
-
-        self.classes = sorted(self.metadata['category'].unique())
-        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
-        self.metadata['label'] = self.metadata['category'].map(self.class_to_idx)
-
-    def __len__(self):
-        return len(self.metadata)
-
-    def __getitem__(self, idx):
-        row = self.metadata.iloc[idx]
-        audio_path = self.data_dir / "audio" / row['filename']
-
-        data, sample_rate = sf.read(audio_path)
-
-        waveform = torch.tensor(data, dtype=torch.float32)
-
-        if waveform.ndim == 1:
-            waveform = waveform.unsqueeze(0)  # [1, samples]
-        else:
-            waveform = waveform.T  # [channels, samples]
-
-        if waveform.shape[0] > 1:
-            waveform = torch.mean(waveform, dim = 0, keepdim = True)
-
-        if self.transform:
-            spectrogram = self.transform(waveform)
-        else:
-            spectrogram = waveform
-
-        return spectrogram, row['label']
+from dataset import ESC50Dataset
+from model import AudioCNN
 
 
 def mixup_data(x, y):
@@ -214,7 +170,7 @@ def train():
                 'accuracy': accuracy,
                 'epoch': epoch,
                 'classes': train_dataset.classes
-            }, 'models/best_model.pth')
+            }, 'models/audio_cnn.pth')
             print(f'New best model saved: {accuracy:.2f}%')
 
     writer.close()
