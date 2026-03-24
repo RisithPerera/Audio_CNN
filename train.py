@@ -7,6 +7,7 @@ import torch.nn as nn
 import torchaudio.transforms as T
 import torch.optim as optim
 import numpy as np
+import soundfile as sf
 
 from torch.optim.lr_scheduler import OneCycleLR
 from model import AudioCNN
@@ -37,7 +38,15 @@ class ESC50Dataset(Dataset):
     def __getitem__(self, idx):
         row = self.metadata.iloc[idx]
         audio_path = self.data_dir / "audio" / row['filename']
-        waveform, sample_rate = torchaudio.load(audio_path)
+
+        data, sample_rate = sf.read(audio_path)
+
+        waveform = torch.tensor(data, dtype=torch.float32)
+
+        if waveform.ndim == 1:
+            waveform = waveform.unsqueeze(0)  # [1, samples]
+        else:
+            waveform = waveform.T  # [channels, samples]
 
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim = 0, keepdim = True)
@@ -205,7 +214,7 @@ def train():
                 'accuracy': accuracy,
                 'epoch': epoch,
                 'classes': train_dataset.classes
-            }, '/models/best_model.pth')
+            }, 'models/best_model.pth')
             print(f'New best model saved: {accuracy:.2f}%')
 
     writer.close()
